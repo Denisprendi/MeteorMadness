@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Earth Defense</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #000;
+    font-family: Inter, sans-serif;
+    color: #fff;
+  }
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  .hud {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .bar {
+    width: 160px;
+    height: 10px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  .bar > i {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg,#35d0ff,#3fa7ff);
+    width: 100%;
+  }
+  button {
+    cursor: pointer;
+    font-size: 14px;
+    padding: 6px 12px;
+  }
+  #menu {
+    position: fixed;
+    top:0; left:0; width:100%; height:100%;
+    background:#000;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    color:white;
+  }
+  #menu h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+  }
+  #menu button {
+    font-size: 18px;
+    padding: 12px 24px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="menu">
+  <h1>Earth Defense</h1>
+  <button id="startBtn">Start Game</button>
+</div>
+
+<div id="hud" class="hud" style="display:none;">
+  <div class="label">Earth Health:</div>
+  <div class="bar"><i id="hpbar" style="width:100%"></i></div>
+  <div id="hptext">100%</div>
+  <div style="margin-left:20px;">Score: <span id="score">0</span></div>
+  <button id="backBtn" style="margin-left:20px;">Back</button>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let W = canvas.width = window.innerWidth;
+let H = canvas.height = window.innerHeight;
+
+// Images
+const earthImg = new Image();
+earthImg.src = 'https://upload.wikimedia.org/wikipedia/commons/9/97/The_Earth_seen_from_Apollo_17.jpg';
+
+// Game variables
+let earth, asteroids, particles, laserActive, mouseX, mouseY, spawnTimer, gameRunning;
+let score = 0;
+
+// DOM elements
+const menu = document.getElementById('menu');
+const startBtn = document.getElementById('startBtn');
+const hud = document.getElementById('hud');
+const scoreEl = document.getElementById('score');
+const backBtn = document.getElementById('backBtn');
+
+// Event listeners
+canvas.addEventListener('mousedown', () => laserActive = true);
+canvas.addEventListener('mouseup', () => laserActive = false);
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+});
+
+startBtn.onclick = () => {
+  menu.style.display = 'none';
+  hud.style.display = 'flex';
+  startGame();
+};
+
+// Updated backBtn to navigate to index.html
+backBtn.onclick = () => {
+  window.location.href = 'index.html';
+};
+
+// Stars
+const stars = Array.from({length:100}, ()=>({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.5,a:Math.random()}));
+
+function initGame() {
+  earth = {x:120, y:H/2, r:80, health:100, maxHealth:100};
+  asteroids = [];
+  particles = [];
+  laserActive = false;
+  mouseX = W/2; mouseY = H/2;
+  spawnTimer = 0;
+  gameRunning = true;
+  score = 0;
+  scoreEl.innerText = score;
+}
+
+function spawnAsteroid() {
+  const size = Math.random()*40+20;
+  const y = Math.random()*H*0.9 + H*0.05;
+  asteroids.push({
+    x: W + size,
+    y,
+    vx: -Math.random()*0.5-0.5,
+    vy: (Math.random()-0.5)*0.5,
+    size,
+    rotation: Math.random()*Math.PI*2,
+    rotationSpeed: (Math.random()-0.5)*0.05
+  });
+}
+
+function spawnExplosion(x, y, intensity=8){
+  for(let i=0;i<intensity;i++){
+    particles.push({
+      x,y,
+      vx:(Math.random()-0.5)*3,
+      vy:(Math.random()-0.5)*3,
+      life:Math.random()*40+30,
+      size:Math.random()*3+1
+    });
+  }
+}
+
+function loop() {
+  if(!gameRunning) return;
+  ctx.clearRect(0,0,W,H);
+
+  // Stars
+  stars.forEach(s=>{
+    ctx.globalAlpha = s.a;
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.r,0,Math.PI*2);
+    ctx.fillStyle='#fff';
+    ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // Asteroids
+  for(let i=asteroids.length-1;i>=0;i--){
+    const a = asteroids[i];
+    const dx = earth.x - a.x;
+    const dy = earth.y - a.y;
+    const dist = Math.hypot(dx,dy);
+    a.vx += (dx/dist)*0.02;
+    a.vy += (dy/dist)*0.02;
+    a.x += a.vx;
+    a.y += a.vy;
+    a.rotation += a.rotationSpeed;
+
+    // Jagged asteroid
+    ctx.save();
+    ctx.translate(a.x,a.y);
+    ctx.rotate(a.rotation);
+    ctx.fillStyle='gray';
+    ctx.beginPath();
+    for(let j=0;j<8;j++){
+      const angle=(Math.PI*2/8)*j;
+      const radius=a.size*(0.6+Math.random()*0.4);
+      ctx.lineTo(Math.cos(angle)*radius,Math.sin(angle)*radius);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Collision
+    if(Math.hypot(a.x-earth.x,a.y-earth.y) < earth.r + a.size/2){
+      earth.health -= Math.round(a.size*0.5);
+      spawnExplosion(a.x,a.y,12);
+      asteroids.splice(i,1);
+      continue;
+    }
+
+    if(a.x + a.size < 0 || a.y<0 || a.y>H) asteroids.splice(i,1);
+  }
+
+  // Laser
+  if(laserActive){
+    ctx.strokeStyle='cyan';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(earth.x,earth.y);
+    ctx.lineTo(mouseX,mouseY);
+    ctx.stroke();
+
+    for(let i=asteroids.length-1;i>=0;i--){
+      const a = asteroids[i];
+      const dx = mouseX-earth.x;
+      const dy = mouseY-earth.y;
+      const t = ((a.x-earth.x)*dx+(a.y-earth.y)*dy)/(dx*dx+dy*dy);
+      const closestX = earth.x + t*dx;
+      const closestY = earth.y + t*dy;
+      if(Math.hypot(a.x-closestX,a.y-closestY)<a.size/2){
+        spawnExplosion(a.x,a.y,8);
+        asteroids.splice(i,1);
+        score++;
+        scoreEl.innerText = score;
+      }
+    }
+  }
+
+  // Earth
+  ctx.drawImage(earthImg,earth.x-earth.r,earth.y-earth.r,earth.r*2,earth.r*2);
+
+  // Particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.x+=p.vx;
+    p.y+=p.vy;
+    p.life--;
+    if(p.life<=0){particles.splice(i,1);continue;}
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    ctx.fillStyle='orange';
+    ctx.fill();
+  }
+
+  // HUD
+  const hpPct = Math.max(0,Math.round(earth.health/earth.maxHealth*100));
+  document.getElementById('hpbar').style.width = hpPct+'%';
+  document.getElementById('hptext').innerText = hpPct+'%';
+
+  // Spawn asteroids
+  spawnTimer++;
+  if(spawnTimer>60){spawnTimer=0;spawnAsteroid();}
+
+  // Game over
+  if(earth.health <=0){
+    gameRunning=false;
+    ctx.fillStyle='rgba(0,0,0,0.6)';
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='red';
+    ctx.font='48px Inter';
+    ctx.textAlign='center';
+    ctx.fillText('Earth Destroyed!',W/2,H/2);
+
+    setTimeout(()=>{
+      initGame();
+      loop();
+    },15000);
+    return;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function startGame(){
+  initGame();
+  loop();
+}
+
+// Wait for Earth image
+earthImg.onload = ()=>{};
+</script>
+
+</body>
+</html>

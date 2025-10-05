@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Asteroid Impact Simulator</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: Arial, sans-serif;
+    }
+
+    #controls {
+      padding: 10px;
+      background: #f4f4f4;
+      border-bottom: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    #controls input {
+      margin: 5px;
+      width: 80px;
+    }
+
+    #togglePanel {
+      margin-left: 10px;
+      background: #007bff;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #backButton {
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    #map {
+      height: calc(90vh - 100px);
+      width: 100%;
+    }
+
+    #results {
+      padding: 10px;
+      background: #eef;
+    }
+
+    #sidePanel {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 320px;
+      height: 100%;
+      background-color: #fff;
+      border-left: 1px solid #ccc;
+      box-shadow: -2px 0 5px rgba(0,0,0,0.2);
+      overflow-y: auto;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+      z-index: 1001;
+      padding: 15px;
+    }
+
+    #sidePanel.open {
+      transform: translateX(0%);
+    }
+
+    .asteroid-item {
+      margin: 10px 0;
+      padding: 8px;
+      background: #f9f9f9;
+      border: 1px solid #ddd;
+      cursor: pointer;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .asteroid-item:hover {
+      background-color: #e0e0e0;
+    }
+
+    .info-icon {
+      background: #ccc;
+      color: black;
+      font-weight: bold;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      text-align: center;
+      line-height: 20px;
+      cursor: pointer;
+      margin-left: 10px;
+      user-select: none;
+    }
+
+    .info.legend {
+      background: white;
+      padding: 8px 12px;
+      font-size: 14px;
+      line-height: 1.5em;
+      color: #333;
+      box-shadow: 0 0 15px rgba(0,0,0,0.2);
+      border-radius: 5px;
+    }
+
+    .info.legend i {
+      width: 14px;
+      height: 14px;
+      display: inline-block;
+      margin-right: 6px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="controls">
+  <label>Diameter (km): <input type="number" id="diameter" value="0.1" /></label>
+  <label>Velocity (km/s): <input type="number" id="velocity" value="20" /></label>
+  <label>Density (g/cm³): <input type="number" id="density" value="3000" /></label>
+  <label>Angle (°): <input type="number" id="angle" value="45" /></label>
+  <label>Population Density (people/km²): <input type="number" id="popDensity" value="1000" /></label>
+  <button onclick="calculateImpact()">Simulate Impact</button>
+
+  <button id="backButton" onclick="goBack()">⬅ Back</button>
+  <div id="togglePanel" onclick="toggleSidePanel()">☄️ Browse Asteroids</div>
+</div>
+
+<div id="map"></div>
+<div id="results"></div>
+
+<!-- Side Panel -->
+<div id="sidePanel">
+  <h3>Famous Asteroids</h3>
+  <p><strong>Total Asteroids:</strong> 15</p>
+  <p><strong>Largest Known:</strong> Ceres (~940 km diameter)</p>
+  <div id="asteroidList"></div>
+</div>
+
+<script>
+  const map = L.map('map').setView([20, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  const impactMarker = L.marker([20, 0], { draggable: true }).addTo(map)
+    .bindPopup('Impact Point').openPopup();
+
+  const zones = {};
+  const zoneColors = {
+    crater: 'orange',
+    fireball: 'red',
+    shockwave: 'yellow',
+    thermal: 'pink'
+  };
+
+  function drawZones(latlng, radii) {
+    Object.values(zones).forEach(zone => map.removeLayer(zone));
+    for (let key in radii) {
+      zones[key] = L.circle(latlng, {
+        radius: radii[key] * 1000,
+        color: zoneColors[key],
+        fillOpacity: 0.3
+      }).addTo(map);
+    }
+  }
+
+  function calculateImpact() {
+    const D_km = parseFloat(document.getElementById("diameter").value);
+    const D = D_km * 1000; // convert km to meters
+    const V = parseFloat(document.getElementById("velocity").value) * 1000;
+    const ρ = parseFloat(document.getElementById("density").value);
+    const θ = parseFloat(document.getElementById("angle").value) * Math.PI / 180;
+    const popDensity = parseFloat(document.getElementById("popDensity").value);
+
+    const radius = D / 2;
+    const volume = (4 / 3) * Math.PI * Math.pow(radius, 3);
+    const mass = volume * ρ;
+    const energy = 0.5 * mass * V * V;
+
+    const craterRadius = 0.01 * Math.pow(energy, 1/4) / 1000;
+    const fireballRadius = craterRadius * 1.5;
+    const shockwaveRadius = craterRadius * 4;
+    const thermalRadius = craterRadius * 6;
+
+    const totalAffectedArea = Math.PI * Math.pow(thermalRadius, 2);
+    const estimatedCasualties = Math.round(totalAffectedArea * popDensity);
+
+    const impactPoint = impactMarker.getLatLng();
+    drawZones(impactPoint, {
+      crater: craterRadius,
+      fireball: fireballRadius,
+      shockwave: shockwaveRadius,
+      thermal: thermalRadius
+    });
+
+    if (thermalRadius < 20) {
+      map.setView(impactPoint, 10);
+    } else {
+      map.setView(impactPoint, 6);
+    }
+
+    document.getElementById("results").innerHTML = `
+      <h3>Impact Summary</h3>
+      <ul>
+        <li><strong>Crater Radius:</strong> ${craterRadius.toFixed(2)} km</li>
+        <li><strong>Fireball Radius:</strong> ${fireballRadius.toFixed(2)} km</li>
+        <li><strong>Shockwave Radius:</strong> ${shockwaveRadius.toFixed(2)} km</li>
+        <li><strong>Thermal Radiation Radius:</strong> ${thermalRadius.toFixed(2)} km</li>
+        <li><strong>Total Affected Area:</strong> ${totalAffectedArea.toFixed(0)} km²</li>
+        <li><strong>Estimated Casualties:</strong> ${estimatedCasualties.toLocaleString()}</li>
+      </ul>
+    `;
+  }
+
+  impactMarker.on('dragend', calculateImpact);
+
+  function toggleSidePanel() {
+    document.getElementById("sidePanel").classList.toggle("open");
+  }
+
+  function goBack() {
+    window.location.href = 'index.html';  // Change as needed
+  }
+
+  const asteroidData = [
+    { name: "Chelyabinsk", D: 0.019, V: 19, ρ: 3300, angle: 18, year: 2013, status: "Hit Earth" },
+    { name: "Tunguska", D: 0.050, V: 27, ρ: 1000, angle: 35, year: 1908, status: "Hit Earth" },
+    { name: "Chicxulub", D: 10, V: 20, ρ: 3000, angle: 45, year: "66M yrs ago", status: "Hit Earth" },
+    { name: "Apophis", D: 0.375, V: 30, ρ: 3000, angle: 45, year: 2029, status: "Near Miss" },
+    { name: "Ceres", D: 940, V: 17, ρ: 2160, angle: 90, year: "N/A", status: "Dwarf Planet" },
+    { name: "99942 Didymos", D: 0.78, V: 23.5, ρ: 2100, angle: 60, year: 2022, status: "Near Miss" },
+    { name: "2008 TC3", D: 0.004, V: 12.8, ρ: 2500, angle: 42, year: 2008, status: "Hit Earth" },
+    { name: "2011 AG5", D: 0.14, V: 28, ρ: 3000, angle: 45, year: 2040, status: "Near Miss" },
+    { name: "4179 Toutatis", D: 1.47, V: 22, ρ: 2100, angle: 40, year: 2004, status: "Near Miss" },
+    { name: "2019 OK", D: 0.10, V: 24, ρ: 3000, angle: 45, year: 2019, status: "Near Miss" },
+    { name: "Bennu", D: 0.490, V: 28, ρ: 1260, angle: 50, year: 2135, status: "Projected Close Flyby" },
+    { name: "Eros", D: 16.8, V: 15, ρ: 2670, angle: 45, year: 1975, status: "Near Miss" },
+    { name: "Florence", D: 4.4, V: 13.5, ρ: 2000, angle: 45, year: 2017, status: "Near Miss" },
+    { name: "1994 PC1", D: 1.1, V: 19.3, ρ: 3000, angle: 46, year: 2022, status: "Near Miss" },
+    { name: "Itokawa", D: 0.3275, V: 19, ρ: 1950, angle: 45, year: 2003, status: "Sample Returned" }
+  ];
+
+  const asteroidList = document.getElementById("asteroidList");
+
+  asteroidData.forEach(a => {
+    const div = document.createElement("div");
+    div.className = "asteroid-item";
+
+    const label = document.createElement("span");
+    label.textContent = a.name;
+    label.onclick = () => {
+      document.getElementById("diameter").value = a.D;
+      document.getElementById("velocity").value = a.V;
+      document.getElementById("density").value = a.ρ;
+      document.getElementById("angle").value = a.angle;
+      calculateImpact();
+    };
+
+    const info = document.createElement("div");
+    info.className = "info-icon";
+    info.textContent = "?";
+    info.title = "Click for info";
+    info.onclick = (e) => {
+      e.stopPropagation();
+      alert(`${a.name}\nYear: ${a.year}\nStatus: ${a.status}\nDiameter: ${a.D.toFixed(4)} km`);
+    };
+
+    div.appendChild(label);
+    div.appendChild(info);
+    asteroidList.appendChild(div);
+  });
+
+  L.Control.geocoder({
+    defaultMarkGeocode: false,
+    geocoder: L.Control.Geocoder.nominatim()
+  }).on('markgeocode', function (e) {
+    const center = e.geocode.center;
+    impactMarker.setLatLng(center);
+    map.setView(center, 8);
+    calculateImpact();
+  }).addTo(map);
+
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = function () {
+    const div = L.DomUtil.create('div', 'info legend');
+    const zones = [
+      { color: 'orange', label: 'Crater Zone' },
+      { color: 'red', label: 'Fireball Zone' },
+      { color: 'yellow', label: 'Shockwave Zone' },
+      { color: 'pink', label: 'Thermal Radiation' }
+    ];
+    div.innerHTML = '<h4>Impact Zones</h4>';
+    zones.forEach(z => {
+      div.innerHTML += `<i style="background:${z.color}"></i>${z.label}<br/>`;
+    });
+    return div;
+  };
+  legend.addTo(map);
+
+  calculateImpact();
+</script>
+
+</body>
+</html>
