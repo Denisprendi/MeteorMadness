@@ -13,15 +13,13 @@
       margin: 0;
       padding: 20px;
       text-align: center;
-
-      /* New Nebula Background Image */
-      background-image: url('https://media.istockphoto.com/id/540717412/photo/blue-and-pink-nebula.jpg?s=612x612&w=0&k=20&c=LaTwe58EG3HNajqCIR-q_Pdlx9Z6w_IXeHI7eyZoPoQ=');
+      color: white; /* Make all text white */
+      position: relative;
+      overflow: hidden;
+      background-image: url('https://media.istockphoto.com/id/540717412/photo/blue-and-pink-nebula.jpg?s=612x612&w=0&k=20&c=LaTwe58EG3HNajqCIR-q_Pdlx9Z6w_IXeHI7eyZoPoQ='); /* New Nebula Background Image */
       background-size: cover;
       background-position: center;
-      background-repeat: no-repeat;
-      background-attachment: fixed;
-
-      color: white;
+      height: 100vh;
     }
 
     /* Title Styling */
@@ -50,6 +48,7 @@
       justify-content: center;
       gap: 20px;
       flex-wrap: wrap;
+      margin-bottom: 40px; /* Adds space between buttons and facts */
     }
 
     .buttons-container button {
@@ -78,6 +77,21 @@
       font-size: 14px;
       color: #ccc;
     }
+
+    /* Transition Effect for Fun Facts */
+    #factBox {
+      opacity: 0;
+      transition: opacity 1s ease-in-out; /* Fade-in effect */
+      transition-delay: 0s;
+    }
+
+    /* 3D Asteroid Model */
+    model-viewer {
+      width: 300px;
+      height: 300px;
+      margin: 20px auto;
+      display: block;
+    }
   </style>
 </head>
 <body>
@@ -91,6 +105,7 @@
     </p>
   </div>
 
+  <!-- Buttons Section -->
   <div class="buttons-container">
     <button onclick="window.location.href='game.html'">
       <div class="emoji">🎮</div>
@@ -108,7 +123,97 @@
     </button>
   </div>
 
- 
+  <!-- Fun Fact Rotator -->
+  <div class="info-box" id="factBox"></div>
 
-</body>
+  <script>
+    // List of 50 fun facts
+    const facts = [
+      "The Chelyabinsk meteor exploded with 30 times the energy of the Hiroshima bomb.",
+      "Most meteors are only the size of a pebble!",
+      "Asteroids are leftover building blocks from the early solar system.",
+      "NASA's DART mission successfully altered an asteroid's path!",
+      "The largest asteroid in the asteroid belt is Ceres, with a diameter of about 940 kilometers.",
+      "Meteors are often mistaken for stars, but they are much closer to Earth.",
+      "A meteor's bright streak in the sky is called a 'shooting star' or 'falling star'.",
+      "Meteors burn up at altitudes between 50 and 75 miles above the Earth’s surface.",
+      "A meteor shower occurs when Earth passes through the debris left by a comet.",
+      "The most famous meteor shower is the Perseids, visible in August each year.",
+      "Jupiter's gravity helps protect Earth from some potentially dangerous asteroids.",
+      "NASA tracks over 20,000 near-Earth asteroids using specialized telescopes.",
+      "Meteors can travel at speeds up to 160,000 miles per hour (257,000 km/h).",
+      "Some meteors can leave behind craters on Earth, like the Barringer Crater in Arizona.",
+      "A large asteroid impact caused the extinction of the dinosaurs 66 million years ago.",
+      "The asteroid belt lies between the orbits of Mars and Jupiter.",
+      "Some asteroids have moons that orbit around them, such as the asteroid 243 Ida.",
+      "Asteroids can be composed of metal, rock, or a combination of both.",
+      "Asteroids are much smaller than planets, but they can still be deadly if they hit Earth.",
+      "There are more than a million known asteroids in our solar system.",
+      "Meteors are pieces of asteroids or comets that enter Earth's atmosphere.",
+      "An asteroid called Apophis will pass close to Earth in 2029, but it won’t hit us.",
+      "Asteroids are thought to be remnants from the formation of our solar system.",
+      "The largest recorded meteor impact on Earth occurred in Siberia in 1908, known as the Tunguska event.",
+      "Asteroids are thought to be the building blocks of planets in our solar system.",
+      "Meteors are visible because they heat up to millions of degrees as they burn up in the atmosphere.",
+      "A meteor's bright trail is caused by the friction between the meteor and Earth's atmosphere.",
+      "Scientists believe that asteroids may have played a role in creating life on Earth.",
+      "Meteors are made up of rock, metal, and sometimes ice.",
+      "The largest impact crater on Earth is the Vredefort crater in South Africa, formed by a meteor.",
+      "Asteroids can be as small as a pebble or as large as a continent.",
+      "The first asteroid was discovered in 1801, named Ceres after the Roman goddess of agriculture.",
+      "Asteroids can be classified into three types: carbonaceous, silicate, and metallic.",
+      "A comet's tail is formed by the solar wind pushing gas and dust away from it.",
+      "Meteors create bright streaks because they are heated to extreme temperatures as they enter the atmosphere.",
+      "Some meteorites have been found to contain organic compounds, possibly the building blocks of life.",
+      "Asteroids are named after Greek and Roman gods, such as Hermes, Apollo, and Vesta.",
+      "A meteor's speed and angle determine the size of the crater it creates if it impacts Earth.",
+      "There is a near-Earth asteroid named 2019 QK, which is about 15 meters in diameter.",
+      "The Hoba meteorite, found in Namibia, is the largest known single meteorite on Earth.",
+      "Some meteorites are so rare and precious that they are worth millions of dollars.",
+      "Meteors can burn up at altitudes of up to 75 miles, creating a stunning light show.",
+      "Spacecraft have even been sent to explore asteroids, like NASA's Dawn mission to Vesta and Ceres.",
+      "Asteroids can cause significant damage if they hit Earth, as seen in the 2013 Chelyabinsk meteor explosion.",
+      "Meteors can leave behind meteorites, which are used by scientists to learn more about space.",
+      "Astronomers use telescopes to track asteroids and predict their orbits to avoid potential collisions."
+    ];
+
+    // Function to display a random fact with fade effect
+    function displayRandomFact() {
+      const randomIndex = Math.floor(Math.random() * facts.length);
+      const factBox = document.getElementById("factBox");
+      
+      // Fade out the current fact
+      factBox.style.opacity = 0;
+
+      // Wait for the fade-out to complete before updating the fact
+      setTimeout(() => {
+        factBox.innerText = facts[randomIndex];
+        // Fade in the new fact
+        factBox.style.opacity = 1;
+      }, 1000); // 1 second delay for the fade effect
+    }
+
+    // Display a random fact initially and every 10 seconds
+    displayRandomFact();
+    setInterval(displayRandomFact, 8000);
+
+  </script>
+
+  <!-- 3D Asteroid Model -->
+  <div class="info-box">
+    <model-viewer 
+      src="https://modelviewer.dev/shared-assets/models/asteroid.glb" 
+      alt="3D asteroid model" 
+      auto-rotate 
+      camera-controls>
+    </model-viewer>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <p>Created by Meteor Madness Team</p>
+  </footer>
+
+</body>  
 </html>
+
